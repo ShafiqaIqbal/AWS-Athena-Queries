@@ -1,0 +1,178 @@
+CREATE OR REPLACE VIEW chicago_crimes_usecase1 AS
+SELECT
+  "incident_year"
+, "primary"
+, "count"(*) "count"
+FROM
+  chicago_crimes_batch_bucket
+WHERE ("incident_year" BETWEEN '2001' AND '2018')
+GROUP BY "incident_year", "primary"
+ORDER BY "incident_year" ASC, "primary" ASC
+
+---------------------------------------------------------------
+
+CREATE OR REPLACE VIEW chicago_crimes_usecase2 AS
+SELECT
+  "incident_year"
+, TRY(CAST("destrict" AS double)) "destrict"
+, "primary"
+, "count"(*) "count"
+FROM
+  chicago_crimes_batch_bucket
+WHERE (("incident_year" BETWEEN '2001' AND '2017') AND ("destrict" <> 'null'))
+GROUP BY "destrict", "primary", "incident_year"
+ORDER BY "incident_year" ASC
+
+-----------------------------------------------------------------
+
+CREATE OR REPLACE VIEW chicago_crimes_usecase3 AS
+SELECT
+  "date_format"("incident_date", '%M') "month"
+, "primary" "primary_type"
+, "count"(*) "count"
+FROM
+  chicago_crimes_batch_bucket
+WHERE ("primary" IS NOT NULL)
+GROUP BY "primary", "date_format"("incident_date", '%M')
+ORDER BY "month" ASC
+
+------------------------------------------------------------------
+
+CREATE OR REPLACE VIEW chicago_crimes_usecase4 AS
+WITH
+  t1 AS (
+   SELECT
+     "incident_year"
+   , "primary"
+   , "arrest"
+   , "count"("arrest") "count_arrest"
+   FROM
+     chicago_crimes_batch_bucket
+   WHERE (("incident_year" BETWEEN '2001' AND '2017') AND ("arrest" = 'False'))
+   GROUP BY "arrest", "primary", "incident_year"
+)
+, t2 AS (
+   SELECT
+     "incident_year"
+   , "primary"
+   , "count"(*) "crimes_count"
+   FROM
+     chicago_crimes_batch_bucket
+   GROUP BY "incident_year", "primary"
+)
+SELECT
+  "t1"."incident_year"
+, "t1"."primary"
+, "t1"."count_arrest"
+, "t2"."crimes_count"
+FROM
+  (t1
+INNER JOIN t2 ON (("t1"."incident_year" = "t2"."incident_year") AND ("t1"."primary" = "t2"."primary")))
+---------------------------------------------------------------------------------------------------------
+
+CREATE OR REPLACE VIEW chicago_crimes_usecase5 AS
+SELECT
+  "primary"
+, "hour"
+, "max"("count") "count"
+FROM
+  (
+   SELECT
+     "primary"
+   , "hour"("incident_date") "hour"
+   , "count"("hour"("incident_date")) "count"
+   FROM
+     chicago_crimes_batch_bucket
+   GROUP BY "primary", "hour"("incident_date")
+)
+GROUP BY "primary", "hour", "count"
+------------------------------------------------------------------------------------------------
+
+CREATE OR REPLACE VIEW chicago_crimes_usecase6 AS
+SELECT
+  "primary"
+, "incident_year"
+, "count"
+FROM
+  (
+   SELECT
+     "primary"
+   , "incident_year"
+   , "count"("primary") "count"
+   , "row_number"() OVER (PARTITION BY "incident_year" ORDER BY "count"("primary") DESC) "rn"
+   FROM
+     chicago_crimes_batch_bucket
+   WHERE ("incident_year" BETWEEN '2001' AND '2070')
+   GROUP BY "primary", "incident_year"
+)  tmp
+WHERE ("rn" <= 5)
+GROUP BY "primary", "incident_year", "count"
+ORDER BY "incident_year" ASC
+
+-------------------------------------------------------------------------------------------
+
+CREATE OR REPLACE VIEW chicago_crimes_usecase7 AS
+WITH
+  t1 AS (
+   SELECT
+     "incident_year"
+   , "arrest"
+   , "count"("arrest") "count_arrest"
+   FROM
+     chicago_crimes_batch_bucket
+   WHERE (("incident_year" BETWEEN '2001' AND '2070') AND ("arrest" = 'False'))
+   GROUP BY "arrest", "incident_year"
+)
+, t2 AS (
+   SELECT
+     "incident_year"
+   , "count"(*) "crimes_count"
+   FROM
+     chicago_crimes_batch_bucket
+   GROUP BY "incident_year"
+)
+SELECT
+  "t1"."incident_year"
+, "t1"."count_arrest"
+, "t2"."crimes_count"
+FROM
+  (t1
+INNER JOIN t2 ON ("t1"."incident_year" = "t2"."incident_year"))
+---------------------------------------------------------------------------
+CREATE OR REPLACE VIEW chicago_crimes_usecase8 AS
+SELECT
+  TRY(CAST("col20" AS double)) "latitude"
+, TRY(CAST("col21" AS double)) "logitude"
+FROM
+  chicago_crimes_batch_bucket
+WHERE (("col20" <> 'null') AND ("col21" <> 'null'))
+LIMIT 5000
+------------------------------------------------------------------------
+
+CREATE OR REPLACE VIEW chicago_crimes_usecase9 AS
+SELECT
+  "location_description"
+, "count"("primary") "total"
+FROM
+  chicago_crimes_batch_bucket
+WHERE (("location_description" IS NOT NULL) AND ("location_description" <> ''))
+GROUP BY "location_description"
+ORDER BY "count"("primary") DESC
+LIMIT 60
+-------------------------------------------------------------------------
+CREATE OR REPLACE VIEW chicago_crimes_usecase10 AS
+SELECT
+  "incident_year"
+, "status"
+, "count"(*) "Total"
+FROM
+  (
+   SELECT
+     (CASE WHEN ("month"(CAST("incident_date" AS date)) IN (9, 10, 11, 12, 1, 2, 3)) THEN 'winter' ELSE 'summer' END) "status"
+   , "incident_year"
+   FROM
+     chicago_crimes_batch_bucket
+   WHERE ("incident_year" BETWEEN '2001' AND '2070')
+)  d
+GROUP BY "incident_year", "status"
+---------------------------------------------------------------------------
